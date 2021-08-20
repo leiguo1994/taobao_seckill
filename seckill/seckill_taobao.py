@@ -20,6 +20,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+from selenium.webdriver.chrome.options import Options
+
 
 
 # 抢购失败最大次数
@@ -48,70 +50,12 @@ class ChromeDrive:
         self.seckill_time = seckill_time
         self.seckill_time_obj = datetime.strptime(self.seckill_time, '%Y-%m-%d %H:%M:%S')
         self.password = password
-
-    def start_driver(self):
-        try:
-            driver = self.find_chromedriver()
-        except WebDriverException:
-            print("Unable to find chromedriver, Please check the drive path.")
-        else:
-            return driver
-
-    def find_chromedriver(self):
-        try:
-            driver = webdriver.Chrome()
-
-        except WebDriverException:
-            try:
-                driver = webdriver.Chrome(executable_path=self.chrome_path, chrome_options=self.build_chrome_options())
-
-            except WebDriverException:
-                raise
-        return driver
-
-    def build_chrome_options(self):
-        """配置启动项"""
-        chrome_options = webdriver.ChromeOptions()
-        chrome_options.accept_untrusted_certs = True
-        chrome_options.assume_untrusted_cert_issuer = True
-        arguments = ['--no-sandbox', '--disable-impl-side-painting', '--disable-setuid-sandbox', '--disable-seccomp-filter-sandbox',
-                     '--disable-breakpad', '--disable-client-side-phishing-detection', '--disable-cast',
-                     '--disable-cast-streaming-hw-encoding', '--disable-cloud-import', '--disable-popup-blocking',
-                     '--ignore-certificate-errors', '--disable-session-crashed-bubble', '--disable-ipv6',
-                     '--allow-http-screen-capture', '--start-maximized']
-        for arg in arguments:
-            chrome_options.add_argument(arg)
-        chrome_options.add_argument(f'--user-agent={choice(get_useragent_data())}')
-        return chrome_options
-
-    def login(self, login_url: str="https://www.taobao.com"):
-        if login_url:
-            self.driver = self.start_driver()
-        else:
-            print("Please input the login url.")
-            raise Exception("Please input the login url.")
-
-
-        while True:
-            self.driver.get(login_url)
-            try:
-                if self.driver.find_element_by_link_text("亲，请登录"):
-                    print("没登录，开始点击登录按钮...")
-                    self.driver.find_element_by_link_text("亲，请登录").click()
-                    print("请在30s内扫码登陆!!")
-                    sleep(30)
-                    if self.driver.find_element_by_xpath('//*[@id="J_SiteNavMytaobao"]/div[1]/a/span'):
-                        print("登陆成功")
-                        break
-                    else:
-                        print("登陆失败, 刷新重试, 请尽快登陆!!!")
-                        continue
-            except Exception as e:
-                print(str(e))
-                continue
+        self.chrome_options = Options()
+        self.chrome_options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")  # 前面设置的端口号
+        self.driver = webdriver.Chrome(executable_path=r'C:\Program Files\Google\Chrome\Application\chromedriver.exe',
+                                        options=self.chrome_options)  # executable执行webdriver驱动的文件
 
     def keep_wait(self):
-        self.login()
         print("等待到点抢购...")
         while True:
             current_time = datetime.now()
@@ -151,25 +95,27 @@ class ChromeDrive:
                 retry_count += 1
 
                 try:
-
-                    if self.driver.find_element_by_id("J_Go"):
-                        self.driver.find_element_by_id("J_Go").click()
+                    while True:
+                        try:
+                            self.driver.find_element_by_id("J_Go").click()
+                        except WebDriverException:
+                            break
                         print("已经点击结算按钮...")
                         click_submit_times = 0
-                        while True:
-                            try:
-                                if click_submit_times < 10:
-                                    self.driver.find_element_by_link_text('提交订单').click()
-                                    print("已经点击提交订单按钮")
-                                    submit_succ = True
-                                    break
-                                else:
-                                    print("提交订单失败...")
-                            except Exception as e:
+                    while True:
+                        try:
+                            if click_submit_times < 10:
+                                self.driver.find_element_by_link_text('提交订单').click()
+                                print("已经点击提交订单按钮")
+                                submit_succ = True
+                                break
+                            else:
+                                print("提交订单失败...")
+                        except Exception as e:
 
-                                print("没发现提交按钮, 页面未加载, 重试...")
-                                click_submit_times = click_submit_times + 1
-                                sleep(0.1)
+                            print("没发现提交按钮, 页面未加载, 重试...")
+                            click_submit_times = click_submit_times + 1
+                            sleep(0.1)
                 except Exception as e:
                     print(e)
                     print("临时写的脚本, 可能出了点问题!!!")
@@ -178,7 +124,6 @@ class ChromeDrive:
         if submit_succ:
             if self.password:
                 self.pay()
-
 
     def pay(self):
         try:
